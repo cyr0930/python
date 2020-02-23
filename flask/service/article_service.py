@@ -1,9 +1,7 @@
 from datetime import datetime
-from app.documents import Article
-from app.service import comment_service
+from flask.documents import Article, datetime_format
+from flask.service import comment_service
 import threading
-
-datetime_format = '%Y-%m-%d %H:%M:%S'
 
 
 class AsyncComment(threading.Thread):
@@ -26,8 +24,7 @@ def get(article_id):
 
 
 def _add(data):
-    article = Article(title=data['title'], body=data['body'], tags=data['tags'],
-                      published_from=datetime.strptime(data['published_from'], datetime_format))
+    article = Article(data)
     article.save()
     return article.meta.id
 

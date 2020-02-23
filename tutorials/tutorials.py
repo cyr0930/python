@@ -30,21 +30,21 @@ def default_argument_values_with_mutable_object(a, L=[]):
     print(L)
 
 
-def keyword_arguments(kind, *arguments, hr="-" * 40, **keywords):
+def keyword_arguments(kind, *args, hr="-"*40, **kwargs):
     """The order in which the keyword arguments are printed is guaranteed to match the order in which they were provided
     in the function call.
-    A final formal parameter of the form *name receives a tuple.
-    A final formal parameter of the form **name receives a dictionary.
-    Any formal parameters which occur after the *name parameter are ‘keyword-only’ arguments.
-    *name must occur before **name.
+    A final formal parameter of the form *args receives a tuple.
+    A final formal parameter of the form **kwargs receives a dictionary.
+    Any formal parameters which occur after the *args parameter are ‘keyword-only’ arguments.
+    *args must occur before **kwargs.
     """
     print("-- Do you have any", kind, "?")
     print("-- I'm sorry, we're all out of", kind)
-    for arg in arguments:
+    for arg in args:
         print(arg)
     print(hr)
-    for kw in keywords:
-        print(kw, ":", keywords[kw])
+    for kw in kwargs:
+        print(kw, ":", kwargs[kw])
 
 
 def unpacking_argument_lists():
@@ -295,6 +295,37 @@ def decimal_floating_point_arithmetic():
     # which implements arithmetic based on rational numbers (so the numbers like 1/3 can be represented exactly).
 
 
+def decorators():
+    def outer(some_func):
+        def inner():
+            print("before some_func")
+            return some_func() + 1
+        return inner
+
+    @outer
+    def foo():
+        """Docstring"""
+        return 1
+    print(foo())
+    print(foo.__name__, foo.__doc__)
+
+    from functools import wraps
+
+    def outer(some_func):
+        @wraps(some_func)
+        def inner():
+            print("before some_func")
+            return some_func() + 1
+        return inner
+
+    @outer
+    def foo():
+        """Docstring"""
+        return 1
+    print(foo())
+    print(foo.__name__, foo.__doc__)
+
+
 if __name__ == '__main__':
     import sys
     print('Start main at', sys.argv[0])
@@ -327,3 +358,4 @@ if __name__ == '__main__':
     multi_threading()
     weak_references()
     decimal_floating_point_arithmetic()
+    decorators()

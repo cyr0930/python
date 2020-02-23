@@ -1,6 +1,6 @@
 from datetime import datetime
-from app import db
-from app.service import article_service, comment_service
+from flask import db
+from flask.service import article_service, comment_service
 
 
 def test():
@@ -49,5 +49,5 @@ def test_async():
 
 if __name__ == "__main__":
     db.init_db()
-    # test()
+    test()
     test_async()

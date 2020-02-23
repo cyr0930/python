@@ -1,6 +1,6 @@
 from flask import Flask
-from app import db
-from app.controller import article_api, comment_api
+from flask import db
+from flask.controller import article_api, comment_api
 
 app = Flask(__name__)
 

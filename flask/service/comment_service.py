@@ -1,4 +1,4 @@
-from app.documents import Comment
+from flask.documents import Comment
 
 
 def get(comment_id):
@@ -11,6 +11,6 @@ def get(comment_id):
 
 
 def add(data):
-    comment = Comment(author=data['author'], content=data['content'], article_id=data['article_id'])
+    comment = Comment(data)
     comment.save()
     return comment.meta.id

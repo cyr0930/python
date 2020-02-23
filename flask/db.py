@@ -1,5 +1,5 @@
 from elasticsearch_dsl.connections import connections
-from app.documents import Article, Comment
+from flask.documents import Article, Comment
 
 
 def init_db():
