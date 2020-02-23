@@ -326,6 +326,23 @@ def decorators():
     print(foo.__name__, foo.__doc__)
 
 
+def with_statement():
+    class ControlledExecution:
+        def __enter__(self):
+            print('enter')
+            return 'thing'
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            print('exit', exc_type, exc_value, traceback)
+            # to suppress the exception, it should return a true value
+            return isinstance(exc_value, ZeroDivisionError)
+
+    with ControlledExecution() as thing:
+        print(thing)
+    with ControlledExecution() as thing:
+        print(1/0, thing)
+
+
 if __name__ == '__main__':
     import sys
     print('Start main at', sys.argv[0])
@@ -359,3 +376,4 @@ if __name__ == '__main__':
     weak_references()
     decimal_floating_point_arithmetic()
     decorators()
+    with_statement()
