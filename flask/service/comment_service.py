@@ -11,6 +11,6 @@ def get(comment_id):
 
 
 def add(data):
-    comment = Comment(data)
-    comment.save()
+    comment = Comment.from_json(data)
+    comment.save(refresh='wait_for')
     return comment.meta.id

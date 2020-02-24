@@ -10,7 +10,11 @@ def test():
         'tags': 'small talk',
         'published_from': '2020-02-23 00:10:00',
     }
+    len1 = len(article_service.get_by_tag('small talk')['hits']['hits'])
     article_id = article_service.add(article_json)
+    len2 = len(article_service.get_by_tag('small talk')['hits']['hits'])
+    # test sync
+    assert len1+1 == len2
 
     comment_json = {
         'author': 'Zack',

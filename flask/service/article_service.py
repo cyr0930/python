@@ -1,5 +1,4 @@
-from datetime import datetime
-from flask.documents import Article, datetime_format
+from flask.documents import Article
 from flask.service import comment_service
 import threading
 
@@ -23,9 +22,15 @@ def get(article_id):
         return None
 
 
+def get_by_tag(tag):
+    s = Article.search().filter('match', tags=tag)[:1000]
+    articles = s.execute()
+    return articles.to_dict()
+
+
 def _add(data):
-    article = Article(data)
-    article.save()
+    article = Article.from_json(data)
+    article.save(refresh='wait_for')
     return article.meta.id
 
 
