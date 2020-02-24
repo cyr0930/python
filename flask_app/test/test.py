@@ -1,6 +1,6 @@
 from datetime import datetime
-from flask import db
-from flask.service import article_service, comment_service
+from flask_app import db, documents
+from flask_app.service import article_service, comment_service
 
 
 def test():
@@ -25,7 +25,7 @@ def test():
 
     article = article_service.get(article_id)
     del article['lines']
-    article_json['published_from'] = datetime.strptime(article_json['published_from'], article_service.datetime_format)
+    article_json['published_from'] = datetime.strptime(article_json['published_from'], documents.datetime_format)
     assert article_json == article
     comment = comment_service.get(comment_id)
     del comment['created_at']
@@ -47,7 +47,7 @@ def test_async():
 
     article = article_service.get(article_id)
     del article['lines']
-    article_json['published_from'] = datetime.strptime(article_json['published_from'], article_service.datetime_format)
+    article_json['published_from'] = datetime.strptime(article_json['published_from'], documents.datetime_format)
     assert article_json == article
 
 

@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from werkzeug.exceptions import abort
-from flask.service import article_service
+from flask_app.service import article_service
 
 api = Blueprint('article', __name__, url_prefix='/api/articles')
 

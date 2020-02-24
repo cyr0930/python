@@ -1,4 +1,4 @@
-from flask.documents import Comment
+from flask_app.documents import Comment
 
 
 def get(comment_id):

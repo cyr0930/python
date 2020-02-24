@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from werkzeug.exceptions import abort
-from flask.service import comment_service
+from flask_app.service import comment_service
 
 api = Blueprint('comment', __name__, url_prefix='/api/comments')
 
