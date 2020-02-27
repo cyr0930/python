@@ -1,0 +1,14 @@
+FROM python:3.7-alpine
+
+WORKDIR /usr/src/app
+
+RUN apk add --update gcc libc-dev linux-headers
+
+RUN pip install uwsgi Flask
+
+COPY . .
+
+EXPOSE 3031
+
+CMD ["uwsgi", "uwsgi.ini"]
+
