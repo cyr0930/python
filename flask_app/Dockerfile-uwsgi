@@ -1,13 +1,10 @@
 FROM python:3.7-alpine
 
-WORKDIR /usr/src
-
-ENV PYTHONPATH $PYTHONPATH:/usr/src
-
 RUN apk add --update gcc libc-dev linux-headers
-
 RUN pip install uwsgi Flask elasticsearch-dsl
 
+ENV PYTHONPATH $PYTHONPATH:/usr/src
+WORKDIR /usr/src
 COPY . .
 
 EXPOSE 3031
