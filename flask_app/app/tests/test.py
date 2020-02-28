@@ -1,6 +1,6 @@
 from datetime import datetime
-from flask_app import db, documents
-from flask_app.service import article_service, comment_service
+from app import db, documents
+from app.service import article_service, comment_service
 
 
 def test():

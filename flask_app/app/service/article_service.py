@@ -1,5 +1,5 @@
-from flask_app.documents import Article
-from flask_app.service import comment_service
+from app.documents import Article
+from app.service import comment_service
 import threading
 
 

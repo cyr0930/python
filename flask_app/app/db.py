@@ -1,8 +1,9 @@
+import os
 from elasticsearch_dsl.connections import connections
-from flask_app.documents import Article, Comment
+from app.documents import Article, Comment
 
 
 def init_db():
-    connections.create_connection(hosts=['localhost'])
+    connections.create_connection(hosts=[os.getenv('ELASTIC_HOST')])
     Article.init()
     Comment.init()

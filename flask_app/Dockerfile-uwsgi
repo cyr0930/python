@@ -1,10 +1,12 @@
 FROM python:3.7-alpine
 
-WORKDIR /usr/src/app
+WORKDIR /usr/src
+
+ENV PYTHONPATH $PYTHONPATH:/usr/src
 
 RUN apk add --update gcc libc-dev linux-headers
 
-RUN pip install uwsgi Flask
+RUN pip install uwsgi Flask elasticsearch-dsl
 
 COPY . .
 
