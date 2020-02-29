@@ -1,7 +1,7 @@
 FROM python:3.7-alpine
 
 RUN apk add --update gcc libc-dev linux-headers
-RUN pip install uwsgi Flask elasticsearch-dsl
+RUN pip install uwsgi Flask elasticsearch-dsl elastic-apm[flask]
 
 ENV PYTHONPATH $PYTHONPATH:/usr/src
 WORKDIR /usr/src

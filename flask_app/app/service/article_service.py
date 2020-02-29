@@ -1,3 +1,4 @@
+from flask import current_app
 from app.documents import Article
 from app.service import comment_service
 import threading
@@ -18,7 +19,7 @@ def get(article_id):
         article = Article.get(article_id)
         return article.to_dict()
     except Exception as e:
-        print(e)
+        current_app.logger.error(f"Article {article_id} doesn't exist.")
         return None
 
 
