@@ -1,0 +1,5 @@
+NumPy 1.16.1
+SciPy 1.2.1
+Scikit-learn 0.20.2
+Matplotlib 3.0.2
+Pandas 0.24.1
