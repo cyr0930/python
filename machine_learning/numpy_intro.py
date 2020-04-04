@@ -32,6 +32,12 @@ def array_construction():
 def indexing():
     ary = np.array([[1, 2, 3], [4, 5, 6]])
     assert ary[-1, -1] == 6
+    # Fancy indexing: can use tuple or list objects of non-contiguous integer indices
+    assert np.array_equal(ary[:, [0, 2]], np.array([[1, 3], [4, 6]]))
+    # Indexing using Boolean masks is also considered fancy indexing
+    mask = (ary > 3) & (ary % 2 == 0)
+    assert np.array_equal(mask, np.array([[False, False, False], [True, False, True]]))
+    assert np.array_equal(ary[mask], np.array([4, 6]))
 
 
 def universal_functions():
@@ -60,8 +66,70 @@ def broadcasting():
     assert np.array_equal(mat3, np.array([[[[5], [11], [17]], [[53], [67], [81]]]]))
 
 
+def memory_views_and_copies():
+    ary = np.array([[1, 2, 3], [4, 5, 6]])
+    ary[:, 1] += 99
+    assert np.array_equal(ary, np.array([[1, 101, 3], [4, 104, 6]]))
+    second_row = ary[1].copy()
+    second_row += 99
+    assert np.array_equal(ary, np.array([[1, 101, 3], [4, 104, 6]]))
+    # Fancy indexing always returns a copy of an array
+    this_is_a_copy = ary[:, [0, 2]]
+    this_is_a_copy += 99
+    assert np.array_equal(ary, np.array([[1, 101, 3], [4, 104, 6]]))
+
+
+def comparison_operators_and_mask():
+    ary = np.array([1, 2, 3, 4])
+    assert np.array_equal((ary > 2).nonzero(), (np.array([2, 3]), ))
+    assert np.array_equal(np.where(ary > 2), (np.array([2, 3]),))
+    # np.where(condition, x, y), If condition is True, yield x, otherwise yield y.
+    assert np.array_equal(np.where(ary > 2, 1, 0), np.array([0, 0, 1, 1]))
+    ary[~(ary > 2)] = 0
+    assert np.array_equal(ary, np.array([0, 0, 3, 4]))
+
+
+def random_number_generators():
+    np.random.seed(123)
+    # uniform distribution
+    print(np.random.rand(3))
+    rng = np.random.RandomState(seed=456)
+    print(rng.rand(3))
+    # standard normal distribution
+    print(rng.randn(2, 3))
+
+
+def reshaping_arrays():
+    # reshape doesn't create new arrays and copy values
+    # the size is fixed, but the shape is not
+    ary = np.array([1, 2, 3, 4, 5, 6])
+    assert np.array_equal(ary.reshape(2, -1), np.array([[1, 2, 3], [4, 5, 6]]))
+    assert np.array_equal(ary.reshape(-1), np.array([1, 2, 3, 4, 5, 6]))
+    # In contrast to reshape(-1), flatten returns a copy
+    assert np.array_equal(ary.flatten(), np.array([1, 2, 3, 4, 5, 6]))
+    # There is no efficient way to merge without creating a new array
+    ary = np.array([[1, 2, 3]])
+    assert np.array_equal(np.concatenate((ary, ary), axis=0), np.array([[1, 2, 3], [1, 2, 3]]))
+
+
+def linear_algebra():
+    row_vector = np.array([1, 2, 3])
+    column_vector = row_vector[:, np.newaxis]
+    assert np.array_equal(column_vector, np.array([[1], [2], [3]]))
+    matrix = np.array([[1, 2], [3, 4]])
+    assert np.array_equal(matrix.T, np.array([[1, 3], [2, 4]]))
+    assert np.linalg.det(matrix) == -2.0000000000000004
+    # If you want to perform a routine that isn't implemented in NumPy,
+    # it is also worth consulting the scipy.linalg documentation
+
+
 ndarray()
 array_construction()
 indexing()
 universal_functions()
 broadcasting()
+memory_views_and_copies()
+comparison_operators_and_mask()
+random_number_generators()
+reshaping_arrays()
+linear_algebra()
