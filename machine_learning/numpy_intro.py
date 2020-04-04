@@ -6,6 +6,7 @@ out operations using efficient C loops and avoid expensive type checks and other
 the size of a NumPy array is very expensive since it requires creating a new array and carrying over the contents of the
 old array that we want to expand or shrink.
 """
+import os
 import numpy as np
 
 
@@ -123,6 +124,29 @@ def linear_algebra():
     # it is also worth consulting the scipy.linalg documentation
 
 
+def set_operations():
+    ary = np.array([1, 1, 2, 3, 1, 5])
+    assert np.array_equal(np.unique(ary), np.array([1, 2, 3, 5]))
+    ary1, ary2 = np.array([1, 2, 3]), np.array([3, 4, 5, 6])
+    assert np.array_equal(np.intersect1d(ary1, ary2), np.array([3]))
+    # setting assume_unique argument can speed up the computation
+    assert np.array_equal(np.setdiff1d(ary1, ary2, assume_unique=True), np.array([1, 2]))
+
+
+def serializing():
+    ary1, ary2 = np.array([1, 2, 3]), np.array([4, 5, 6])
+    if not os.path.exists('tmp'):
+        os.mkdir('tmp')
+    np.save('tmp/ary-data.npy', ary1)
+    assert np.array_equal(np.load('tmp/ary-data.npy'), ary1)
+    np.savez('tmp/ary-data.npz', ary1, ary2)
+    d = np.load('tmp/ary-data.npz')
+    assert np.array_equal(d['arr_0'], ary1)
+    np.savez('tmp/ary-data.npz', **{'ary1': ary1, 'ary2': ary2})
+    d = np.load('tmp/ary-data.npz')
+    assert np.array_equal(d['ary1'], ary1)
+
+
 ndarray()
 array_construction()
 indexing()
@@ -133,3 +157,5 @@ comparison_operators_and_mask()
 random_number_generators()
 reshaping_arrays()
 linear_algebra()
+set_operations()
+serializing()
