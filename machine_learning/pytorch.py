@@ -119,7 +119,11 @@ def neural_networks():
 
             running_loss += loss.item()
             if i % bs == 0:
-                writer.add_scalar('training loss', running_loss/bs, epoch*n+i+bs)
+                global_step = epoch*n+i+bs
+                for name, param in net.named_parameters():
+                    writer.add_histogram(name, param.data, global_step)
+                    writer.add_histogram(name+'_grad', param.grad, global_step)
+                writer.add_scalar('training loss', running_loss/bs, global_step)
                 running_loss = 0.0
 
     print('conv1.bias.grad', net.conv1.bias.grad)
