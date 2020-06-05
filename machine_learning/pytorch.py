@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.cuda.amp import autocast
 from torch.utils.tensorboard import SummaryWriter
 
 # https://github.com/pytorch/pytorch/issues/30966
@@ -112,8 +113,9 @@ def neural_networks():
         for i in range(0, n, bs):
             inputs, labels = data[i:i+bs], target[i:i+bs]
             optimizer.zero_grad()   # clear the existing gradients though, else gradients will be accumulated
-            outputs = net(inputs)
-            loss = criterion(outputs, labels)
+            with autocast():
+                outputs = net(inputs)
+                loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()    # does the update
 
