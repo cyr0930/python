@@ -134,3 +134,4 @@ tmp/
 runs/
 data/
 .data/
+lightning_logs/
