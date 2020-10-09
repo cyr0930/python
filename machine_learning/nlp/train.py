@@ -1,34 +1,38 @@
 import time
 import math
+import os
 import torch
 import torch.nn as nn
 from machine_learning.nlp.model import GPT2
-import torchtext
-from torchtext.data.utils import get_tokenizer
+from machine_learning.nlp.tokenizer import get_tokenizer
 
-TEXT = torchtext.data.Field(tokenize=get_tokenizer("basic_english"),
-                            init_token='<sos>',
-                            eos_token='<eos>',
-                            lower=True)
-train_txt, val_txt, test_txt = torchtext.datasets.WikiText2.splits(TEXT)
-TEXT.build_vocab(train_txt)
+PATH_DATA = os.path.abspath(f'{__file__}/../../.data')
+tokenizer = get_tokenizer()
+data = []
+with open(f'{PATH_DATA}/korean_news_comments/comments.txt', encoding='utf-8') as r:
+    for i, line in enumerate(r):
+        data += tokenizer.encode(line)
+        if i % 10000 == 0:
+            print(i)
+train_txt = data[:int(len(data) * 0.99)]
+val_txt = data[len(train_txt):]
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def batchify(data, bsz):
-    data = TEXT.numericalize([data.examples[0].text])
-    # Divide the dataset into bsz parts.
+def batchify(data, bsz, shuffle=False):
+    data = torch.tensor([data]).t()
     nbatch = data.size(0) // bsz
-    # Trim off any extra elements that wouldn't cleanly fit (remainders).
     data = data.narrow(0, 0, nbatch * bsz)
-    # Evenly divide the data across the bsz batches.
-    data = data.view(bsz, -1).t().contiguous()
+    data = data.view(bsz, -1).t()
+    if shuffle:
+        data = data[torch.randperm(data.size()[0])]
+    data = data.contiguous()
     return data.to(device)
 
 
 batch_size = 20
 eval_batch_size = 10
-train_data = batchify(train_txt, batch_size)
+train_data = batchify(train_txt, batch_size, True)
 val_data = batchify(val_txt, eval_batch_size)
 
 bptt = 35
@@ -41,7 +45,7 @@ def get_batch(source, i):
     return data, target
 
 
-ntokens = len(TEXT.vocab.stoi)
+ntokens = len(tokenizer)
 emsize = 768
 nlayers = 12
 nhead = 12
