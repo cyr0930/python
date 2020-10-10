@@ -1,19 +1,29 @@
 import time
 import math
-import os
 import torch
 import torch.nn as nn
+from torch.cuda.amp import autocast
 from machine_learning.nlp.model import GPT2
 from machine_learning.nlp.tokenizer import get_tokenizer
+from machine_learning.nlp.preprocess import PATH_DATA
 
-PATH_DATA = os.path.abspath(f'{__file__}/../../.data')
+bptt = 64
+batch_size = 16
 tokenizer = get_tokenizer()
 data = []
-with open(f'{PATH_DATA}/korean_news_comments/comments.txt', encoding='utf-8') as r:
-    for i, line in enumerate(r):
-        data += tokenizer.encode(line)
-        if i % 10000 == 0:
-            print(i)
+with open(PATH_DATA, encoding='utf-8') as r:
+    for j, line in enumerate(r):
+        tokens = tokenizer.encode(line).ids
+        for i in range(0, len(tokens), bptt):
+            buf = tokens[i:i+bptt]
+            if len(buf) > 4:
+                if len(buf) < bptt:
+                    buf += [1] * (bptt - len(buf))
+                data += buf
+        if j % 10000 == 0:
+            print(j)
+        if len(data) > 2000000:
+            break
 train_txt = data[:int(len(data) * 0.99)]
 val_txt = data[len(train_txt):]
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -30,12 +40,8 @@ def batchify(data, bsz, shuffle=False):
     return data.to(device)
 
 
-batch_size = 20
-eval_batch_size = 10
 train_data = batchify(train_txt, batch_size, True)
-val_data = batchify(val_txt, eval_batch_size)
-
-bptt = 35
+val_data = batchify(val_txt, batch_size)
 
 
 def get_batch(source, i):
@@ -45,16 +51,16 @@ def get_batch(source, i):
     return data, target
 
 
-ntokens = len(tokenizer)
+ntokens = tokenizer.get_vocab_size()
 emsize = 768
 nlayers = 12
 nhead = 12
 dropout = 0.1
 model = GPT2(emsize, nhead, nlayers, bptt, ntokens, dropout).to(device)
 
-criterion = nn.CrossEntropyLoss()
-lr = 1.0
-optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+criterion = nn.CrossEntropyLoss(ignore_index=1)
+lr = 0.00005
+optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.95)
 
 
@@ -65,8 +71,9 @@ def train():
     for batch, i in enumerate(range(0, train_data.size(0) - 1, bptt)):
         data, targets = get_batch(train_data, i)
         optimizer.zero_grad()
-        output = model(data)
-        loss = criterion(output.view(-1, ntokens), targets)
+        with autocast():
+            output = model(data)
+            loss = criterion(output.view(-1, ntokens), targets)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
         optimizer.step()
