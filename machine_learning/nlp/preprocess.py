@@ -4,7 +4,7 @@ import hgtk
 
 PATH_DIR = os.path.abspath(f'{__file__}/../../.data')
 PATH_ORIGIN = f'{PATH_DIR}/korean_news_comments/20190101_20200611_v2.txt'
-PATH_DATA = f'{PATH_DIR}/korean_news_comments/data.txt'
+PATH_DATA = f'{PATH_DIR}/korean_news_comments/origin.txt'
 
 if __name__ == '__main__':
     if not os.path.isfile(PATH_DATA):

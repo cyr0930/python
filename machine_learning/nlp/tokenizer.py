@@ -1,28 +1,28 @@
-from tokenizers import ByteLevelBPETokenizer
+import sentencepiece as spm
 from machine_learning.nlp.preprocess import PATH_DIR, PATH_DATA
 
-PREFIX = f'{PATH_DIR}/tokenizer'
-PATH_VOCAB = f'{PREFIX}/byte-level-vocab-split.json'
-PATH_MODEL = f'{PREFIX}/byte-level-merges-split.txt'
+DIRECTORY = f'{PATH_DIR}/tokenizer'
+NAME = 'byte-level'
 
 
 def get_tokenizer():
-    return ByteLevelBPETokenizer(PATH_VOCAB, PATH_MODEL)
+    path = f'{DIRECTORY}/m.model'
+    return spm.SentencePieceProcessor(model_file=path)
 
 
 def train_tokenizer():
-    tokenizer = ByteLevelBPETokenizer()
-    tokenizer.train(
-        files=[PATH_DATA],
+    spm.SentencePieceTrainer.Train(
+        input=PATH_DATA,
+        model_prefix='m',
         vocab_size=30000,
-        min_frequency=2,
-        special_tokens=["<s>", "<pad>", "</s>", "<unk>"],
+        character_coverage=1.0,
+        model_type='bpe',
+        user_defined_symbols=[],
     )
-    tokenizer.save_model(PREFIX)
 
 
 if __name__ == '__main__':
     train_tokenizer()
-    tokenizer = get_tokenizer()
-    encoding = tokenizer.encode('ㅇㅣㅉㅡㅁ ㄷㅚㅁㅕㄴ')
-    print(tokenizer.decode(encoding.ids))
+    sp = get_tokenizer()
+    tokens = sp.encode('안녕')
+    print(tokens)

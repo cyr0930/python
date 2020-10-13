@@ -61,7 +61,7 @@ class GPT2(pl.LightningModule):
     def _init_weights(self):
         self.token_embeddings.weight.data.normal_(std=INIT_STD)
         self.position_embeddings.weight.data.normal_(std=INIT_STD)
-        self.head.weight = self.token_embeddings.weight     # weight tying
+        self.head.weight.data.normal_(std=INIT_STD)
 
     def forward(self, x):
         length, batch = x.shape
