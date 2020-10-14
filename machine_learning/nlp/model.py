@@ -1,36 +1,37 @@
+import math
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 INIT_STD = 0.02
 
 
 class Block(nn.Module):
-    def __init__(self, embed_dim, heads, dropout):
+    def __init__(self, embed_dim, nheads, nlayers, dropout):
         super(Block, self).__init__()
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
         self.ln_1 = nn.LayerNorm(embed_dim)
         self.ln_2 = nn.LayerNorm(embed_dim)
-        self.attn = nn.MultiheadAttention(embed_dim, heads)
-        self.linear1 = nn.Linear(embed_dim, embed_dim * 4)
-        self.linear2 = nn.Linear(embed_dim * 4, embed_dim)
+        self.attn = nn.MultiheadAttention(embed_dim, nheads)
+        self.linear1 = nn.Linear(embed_dim, embed_dim * 4, bias=False)
+        self.linear2 = nn.Linear(embed_dim * 4, embed_dim, bias=False)
         self.mlp = nn.Sequential(self.linear1, nn.GELU(), self.linear2)
 
-        self._init_weights()
+        self._init_weights(nlayers)
 
-    def _init_weights(self):
+    def _init_weights(self, nlayers):
+        scaled_std = INIT_STD / math.sqrt(2 * nlayers)
         self.attn.in_proj_weight.data.normal_(std=INIT_STD)
+        self.attn.out_proj.weight.data.normal_(std=scaled_std)
         self.linear1.weight.data.normal_(std=INIT_STD)
-        self.linear2.weight.data.normal_(std=INIT_STD)
+        self.linear2.weight.data.normal_(std=scaled_std)
         self.attn.in_proj_bias.data.zero_()
-        self.linear1.bias.data.zero_()
-        self.linear2.bias.data.zero_()
+        self.attn.out_proj.bias = None
 
     def forward(self, x):
-        attn_mask = torch.full(
-            (len(x), len(x)), -float("Inf"), device=x.device, dtype=x.dtype
-        )
+        attn_mask = torch.full((len(x), len(x)), -float("Inf"), device=x.device, dtype=x.dtype)
         attn_mask = torch.triu(attn_mask, diagonal=1)
 
         x = self.ln_1(x)
@@ -42,8 +43,7 @@ class Block(nn.Module):
 
 
 class GPT2(pl.LightningModule):
-    def __init__(self, embed_dim: int, heads: int, layers: int, num_positions: int, vocab_size: int,
-                 dropout: float = 0.1):
+    def __init__(self, embed_dim, nheads, nlayers, num_positions, vocab_size, dropout=0.1):
         super(GPT2, self).__init__()
         self.save_hyperparameters()
 
@@ -51,8 +51,8 @@ class GPT2(pl.LightningModule):
         self.position_embeddings = nn.Embedding(num_positions, embed_dim)
         self.dropout = nn.Dropout(dropout)
         self.layers = nn.ModuleList()
-        for _ in range(layers):
-            self.layers.append(Block(embed_dim, heads, dropout))
+        for _ in range(nlayers):
+            self.layers.append(Block(embed_dim, nheads, nlayers, dropout))
         self.ln_f = nn.LayerNorm(self.hparams.embed_dim)
         self.head = nn.Linear(embed_dim, vocab_size, bias=False)
 
@@ -76,4 +76,6 @@ class GPT2(pl.LightningModule):
             h = layer(h)
         h = self.ln_f(h)
 
-        return self.head(h)
+        h = self.head(h)
+        # h = F.linear(h, self.token_embeddings.weight)  # weight tying
+        return h
