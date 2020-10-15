@@ -1,7 +1,8 @@
 import pytorch_lightning as pl
 from pytorch_lightning import loggers
 from machine_learning.nlp import config
-from machine_learning.nlp.model import DataModule, GPT2
+from machine_learning.nlp.model import GPT2
+from machine_learning.nlp.data_module import DataModule
 from machine_learning.nlp.tokenizer import get_tokenizer
 
 if __name__ == "__main__":
