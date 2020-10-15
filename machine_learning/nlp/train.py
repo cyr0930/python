@@ -47,6 +47,8 @@ with open(PATH_DATA, encoding='utf-8') as r:
                 data.append(buf)
         if j % 10000 == 0:
             print(j)
+        if len(data) > 5000:
+            break
 random.shuffle(data)
 train_data = batchify(data, batch_size)
 
