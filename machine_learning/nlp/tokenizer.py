@@ -1,18 +1,14 @@
 import sentencepiece as spm
-from machine_learning.nlp.preprocess import PATH_DIR, PATH_DATA
-
-DIRECTORY = f'{PATH_DIR}/tokenizer'
-NAME = 'byte-level'
+from machine_learning.nlp.config import path_dir, path_data
 
 
 def get_tokenizer():
-    path = f'{DIRECTORY}/m.model'
-    return spm.SentencePieceProcessor(model_file=path)
+    return spm.SentencePieceProcessor(model_file=f'{path_dir}/tokenizer/m.model')
 
 
 def train_tokenizer():
     spm.SentencePieceTrainer.Train(
-        input=PATH_DATA,
+        input=path_data,
         model_prefix='m',
         vocab_size=30000,
         character_coverage=1.0,
@@ -24,5 +20,5 @@ def train_tokenizer():
 if __name__ == '__main__':
     train_tokenizer()
     sp = get_tokenizer()
-    tokens = sp.encode('안녕')
+    tokens = sp.Encode('안녕')
     print(tokens)

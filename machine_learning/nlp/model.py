@@ -3,11 +3,40 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader
+from torch.cuda.amp import autocast
+from transformers.optimization import get_cosine_schedule_with_warmup
+from machine_learning.nlp import config
 
-INIT_STD = 0.02
+
+class DataModule(pl.LightningDataModule):
+    def __init__(self, tokenizer):
+        super().__init__()
+        self.tokenizer = tokenizer
+
+    def setup(self, stage):
+        if stage == 'fit':
+            self.data = []
+            size = config.bptt + 1
+            with open(config.path_data, encoding='utf-8') as r:
+                for j, line in enumerate(r):
+                    tokens = self.tokenizer.encode(line)
+                    tokens += [config.eos_id]
+                    for i in range(0, len(tokens), size):
+                        buf = tokens[i:i + size]
+                        if len(buf) > 4:
+                            if len(buf) < size:
+                                buf += [config.pad_id] * (size - len(buf))
+                            self.data.append(buf)
+                    if j % 10000 == 0:
+                        print(j)
+            self.data = TensorDataset(torch.tensor(self.data))
+
+    def train_dataloader(self):
+        return DataLoader(self.data, batch_size=config.batch_size, shuffle=True)
 
 
-class Block(nn.Module):
+class Block(pl.LightningModule):
     def __init__(self, embed_dim, nheads, nlayers, dropout):
         super(Block, self).__init__()
         self.dropout1 = nn.Dropout(dropout)
@@ -22,10 +51,10 @@ class Block(nn.Module):
         self._init_weights(nlayers)
 
     def _init_weights(self, nlayers):
-        scaled_std = INIT_STD / math.sqrt(2 * nlayers)
-        self.attn.in_proj_weight.data.normal_(std=INIT_STD)
+        scaled_std = config.initial_weight_scale / math.sqrt(2 * nlayers)
+        self.attn.in_proj_weight.data.normal_(std=config.initial_weight_scale)
         self.attn.out_proj.weight.data.normal_(std=scaled_std)
-        self.linear1.weight.data.normal_(std=INIT_STD)
+        self.linear1.weight.data.normal_(std=config.initial_weight_scale)
         self.linear2.weight.data.normal_(std=scaled_std)
         self.attn.in_proj_bias.data.zero_()
         self.attn.out_proj.bias = None
@@ -43,9 +72,12 @@ class Block(nn.Module):
 
 
 class GPT2(pl.LightningModule):
-    def __init__(self, embed_dim, nheads, nlayers, num_positions, vocab_size, dropout=0.1):
+    def __init__(self, tokenizer, embed_dim, nheads, nlayers, num_positions, vocab_size, dropout=0.1):
         super(GPT2, self).__init__()
         self.save_hyperparameters()
+
+        self.tokenizer = tokenizer
+        self.criterion = nn.CrossEntropyLoss(ignore_index=config.pad_id)
 
         self.token_embeddings = nn.Embedding(vocab_size, embed_dim)
         self.position_embeddings = nn.Embedding(num_positions, embed_dim)
@@ -59,9 +91,9 @@ class GPT2(pl.LightningModule):
         self._init_weights()
 
     def _init_weights(self):
-        self.token_embeddings.weight.data.normal_(std=INIT_STD)
-        self.position_embeddings.weight.data.normal_(std=INIT_STD)
-        self.head.weight.data.normal_(std=INIT_STD)
+        self.token_embeddings.weight.data.normal_(std=config.initial_weight_scale)
+        self.position_embeddings.weight.data.normal_(std=config.initial_weight_scale)
+        self.head.weight.data.normal_(std=config.initial_weight_scale)
 
     def forward(self, x):
         length, batch = x.shape
@@ -79,3 +111,28 @@ class GPT2(pl.LightningModule):
         h = self.head(h)
         # h = F.linear(h, self.token_embeddings.weight)  # weight tying
         return h
+
+    def configure_optimizers(self):
+        total_steps = config.epochs * len(self.train_dataloader())
+        optimizers = [torch.optim.Adam(self.parameters(), lr=config.lr, betas=(0.9, 0.999), eps=1e-8)]
+        schedulers = [{
+            'scheduler': get_cosine_schedule_with_warmup(optimizers[0], config.warmup_steps, total_steps),
+            'interval': 'step'
+        }]
+        return optimizers, schedulers
+
+    def training_step(self, batch, batch_idx):
+        sources, targets = batch[0][:, :-1].t(), batch[0][:, 1:].t()
+        with autocast():
+            output = self(sources)
+            loss = self.criterion(output.view(-1, config.ntokens), targets.reshape(-1))
+
+        log_interval = 100
+        if batch_idx % log_interval == 0 and batch_idx > 0:
+            print('\n')
+            print(self.tokenizer.DecodeIds(sources[:, 0].tolist()))
+            print(self.tokenizer.DecodeIds(output.argmax(-1)[:, 0].tolist()))
+
+        result = pl.TrainResult(minimize=loss)
+        result.log('train_loss', loss, prog_bar=True)
+        return result

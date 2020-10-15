@@ -11,11 +11,6 @@ from torch.cuda.amp import autocast
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import TensorDataset, DataLoader
 
-# https://github.com/pytorch/pytorch/issues/30966
-import tensorflow as tf
-import tensorboard as tb
-tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
-
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # For reproducibility
