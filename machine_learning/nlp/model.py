@@ -83,8 +83,8 @@ class GPT2(pl.LightningModule):
         return h
 
     def configure_optimizers(self):
-        total_steps = config.epochs * len(self.train_dataloader())
         optimizers = [torch.optim.Adam(self.parameters(), lr=config.lr, betas=(0.9, 0.999), eps=1e-8)]
+        total_steps = config.epochs * len(self.train_dataloader())
         schedulers = [{
             'scheduler': get_cosine_schedule_with_warmup(optimizers[0], config.warmup_steps, total_steps),
             'interval': 'step'
