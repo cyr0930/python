@@ -13,6 +13,7 @@ if __name__ == "__main__":
         gradient_clip_val=config.gladient_clip_val,
         max_epochs=config.epochs,
         gpus=1,
-        logger=loggers.TensorBoardLogger('runs/', name=None)
+        logger=loggers.TensorBoardLogger('runs/', name=None),
+        precision=16,
     )
     trainer.fit(model, datamodule=dm)

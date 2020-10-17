@@ -3,7 +3,6 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.cuda.amp import autocast
 from transformers.optimization import get_cosine_schedule_with_warmup
 from machine_learning.nlp import config
 
@@ -65,7 +64,7 @@ class GPT2(pl.LightningModule):
     def _init_weights(self):
         self.token_embeddings.weight.data.normal_(std=config.initial_weight_scale)
         self.position_embeddings.weight.data.normal_(std=config.initial_weight_scale)
-        self.head.weight.data.normal_(std=config.initial_weight_scale)
+        # self.head.weight = self.token_embeddings.weight     # weight tying
 
     def forward(self, x):
         length, batch = x.shape
@@ -81,7 +80,6 @@ class GPT2(pl.LightningModule):
         h = self.ln_f(h)
 
         h = self.head(h)
-        # h = F.linear(h, self.token_embeddings.weight)  # weight tying
         return h
 
     def configure_optimizers(self):
@@ -95,9 +93,8 @@ class GPT2(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         sources, targets = batch[0][:, :-1].t(), batch[0][:, 1:].t()
-        with autocast():
-            output = self(sources)
-            loss = self.criterion(output.view(-1, config.ntokens), targets.reshape(-1))
+        output = self(sources)
+        loss = self.criterion(output.view(-1, config.ntokens), targets.reshape(-1))
 
         log_interval = 100
         if batch_idx % log_interval == 0 and batch_idx > 0:
