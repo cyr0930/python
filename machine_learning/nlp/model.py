@@ -2,7 +2,6 @@ import math
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from transformers.optimization import get_cosine_schedule_with_warmup
 from machine_learning.nlp import config
 
@@ -67,6 +66,7 @@ class GPT2(pl.LightningModule):
         # self.head.weight = self.token_embeddings.weight     # weight tying
 
     def forward(self, x):
+        x = x.t()
         length, batch = x.shape
 
         h = self.token_embeddings(x.long())
@@ -80,7 +80,7 @@ class GPT2(pl.LightningModule):
         h = self.ln_f(h)
 
         h = self.head(h)
-        return h
+        return h.transpose(0, 1)
 
     def configure_optimizers(self):
         optimizers = [torch.optim.Adam(self.parameters(), lr=config.lr, betas=(0.9, 0.999), eps=1e-8)]
@@ -92,15 +92,15 @@ class GPT2(pl.LightningModule):
         return optimizers, schedulers
 
     def training_step(self, batch, batch_idx):
-        sources, targets = batch[0][:, :-1].t(), batch[0][:, 1:].t()
+        sources, targets = batch[0][:, :-1], batch[0][:, 1:]
         output = self(sources)
-        loss = self.criterion(output.view(-1, config.ntokens), targets.reshape(-1))
+        loss = self.criterion(output.permute(0, 2, 1), targets)
 
         log_interval = 100
         if batch_idx % log_interval == 0 and batch_idx > 0:
             print('\n')
-            print(self.tokenizer.DecodeIds(sources[:, 0].tolist()))
-            print(self.tokenizer.DecodeIds(output.argmax(-1)[:, 0].tolist()))
+            print(self.tokenizer.DecodeIds(sources[0].tolist()))
+            print(self.tokenizer.DecodeIds(output.argmax(-1)[0].tolist()))
 
         result = pl.TrainResult(minimize=loss)
         result.log('train_loss', loss, prog_bar=True)
