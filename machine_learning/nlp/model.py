@@ -13,7 +13,7 @@ class Block(pl.LightningModule):
         self.dropout2 = nn.Dropout(dropout)
         self.ln_1 = nn.LayerNorm(embed_dim)
         self.ln_2 = nn.LayerNorm(embed_dim)
-        self.attn = nn.MultiheadAttention(embed_dim, nheads)
+        self.attn = nn.MultiheadAttention(embed_dim, nheads, dropout=dropout)
         self.linear1 = nn.Linear(embed_dim, embed_dim * 4, bias=False)
         self.linear2 = nn.Linear(embed_dim * 4, embed_dim, bias=False)
         self.mlp = nn.Sequential(self.linear1, nn.GELU(), self.linear2)
@@ -55,7 +55,7 @@ class GPT2(pl.LightningModule):
         self.layers = nn.ModuleList()
         for _ in range(nlayers):
             self.layers.append(Block(embed_dim, nheads, nlayers, dropout))
-        self.ln_f = nn.LayerNorm(self.hparams.embed_dim)
+        self.ln_f = nn.LayerNorm(embed_dim)
         self.head = nn.Linear(embed_dim, vocab_size, bias=False)
 
         self._init_weights()
@@ -63,6 +63,7 @@ class GPT2(pl.LightningModule):
     def _init_weights(self):
         self.token_embeddings.weight.data.normal_(std=config.initial_weight_scale)
         self.position_embeddings.weight.data.normal_(std=config.initial_weight_scale)
+        self.head.weight.data.normal_(std=config.initial_weight_scale)
         # self.head.weight = self.token_embeddings.weight     # weight tying
 
     def forward(self, x):
