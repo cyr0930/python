@@ -2,7 +2,8 @@ import math
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from transformers.optimization import get_cosine_schedule_with_warmup
+from torch.optim.lr_scheduler import LambdaLR
+from transformers.optimization import AdamW
 from machine_learning.nlp import config
 
 
@@ -63,8 +64,8 @@ class GPT2(pl.LightningModule):
     def _init_weights(self):
         self.token_embeddings.weight.data.normal_(std=config.initial_weight_scale)
         self.position_embeddings.weight.data.normal_(std=config.initial_weight_scale)
-        self.head.weight.data.normal_(std=config.initial_weight_scale)
-        # self.head.weight = self.token_embeddings.weight     # weight tying
+        # self.head.weight.data.normal_(std=config.initial_weight_scale)
+        self.head.weight = self.token_embeddings.weight     # weight tying
 
     def forward(self, x):
         x = x.t()
@@ -84,10 +85,25 @@ class GPT2(pl.LightningModule):
         return h.transpose(0, 1)
 
     def configure_optimizers(self):
-        optimizers = [torch.optim.Adam(self.parameters(), lr=config.lr, betas=(0.9, 0.999), eps=1e-8)]
-        total_steps = config.epochs * len(self.train_dataloader())
+        param_optimizer = list(self.named_parameters())
+        no_decay = ['bias', 'ln_']
+        optimizer_grouped_parameters = [
+            {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
+            {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+        ]
+
+        optimizers = [AdamW(optimizer_grouped_parameters, lr=config.lr, eps=1e-8)]
+        total_steps = len(self.train_dataloader()) * 10
+
+        def lr_lambda(current_step):
+            if current_step < config.warmup_steps:
+                return float(current_step) / float(max(1, config.warmup_steps))
+            current_step = min(total_steps, current_step)
+            progress = float(current_step - config.warmup_steps) / float(max(1, total_steps - config.warmup_steps))
+            return max(0.3, 0.5 * (1.0 + math.cos(math.pi * progress)))
+
         schedulers = [{
-            'scheduler': get_cosine_schedule_with_warmup(optimizers[0], config.warmup_steps, total_steps),
+            'scheduler': LambdaLR(optimizers[0], lr_lambda),
             'interval': 'step'
         }]
         return optimizers, schedulers
