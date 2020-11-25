@@ -43,7 +43,8 @@ class Block(pl.LightningModule):
 
 
 class GPT2(pl.LightningModule):
-    def __init__(self, tokenizer, embed_dim, nheads, nlayers, num_positions, vocab_size, dropout=0.1):
+    def __init__(self, tokenizer, embed_dim, nheads, nlayers, num_positions, vocab_size,
+                 dropout=0.1, tying_weights=True):
         super(GPT2, self).__init__()
         self.save_hyperparameters()
 
@@ -59,13 +60,15 @@ class GPT2(pl.LightningModule):
         self.ln_f = nn.LayerNorm(embed_dim)
         self.head = nn.Linear(embed_dim, vocab_size, bias=False)
 
-        self._init_weights()
+        self._init_weights(tying_weights)
 
-    def _init_weights(self):
+    def _init_weights(self, tying_weights):
         self.token_embeddings.weight.data.normal_(std=config.initial_weight_scale)
         self.position_embeddings.weight.data.normal_(std=config.initial_weight_scale)
-        # self.head.weight.data.normal_(std=config.initial_weight_scale)
-        self.head.weight = self.token_embeddings.weight     # weight tying
+        if tying_weights:
+            self.head.weight = self.token_embeddings.weight
+        else:
+            self.head.weight.data.normal_(std=config.initial_weight_scale)
 
     def forward(self, x):
         x = x.t()
