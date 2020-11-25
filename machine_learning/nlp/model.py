@@ -2,9 +2,59 @@ import math
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.optim.lr_scheduler import LambdaLR
 from transformers.optimization import AdamW
 from machine_learning.nlp import config
+
+
+class CustomAttention(nn.MultiheadAttention):
+    def forward(self, query, key, value, key_padding_mask=None, need_weights=False, attn_mask=None):
+        tgt_len, bsz, embed_dim = query.size()
+        assert embed_dim == self.embed_dim
+        assert key.size(0) == value.size(0) and key.size(1) == value.size(1)
+
+        head_dim = embed_dim // self.num_heads
+        assert head_dim * self.num_heads == embed_dim, "embed_dim must be divisible by num_heads"
+        scaling = float(head_dim) ** -0.5
+
+        q, k, v = F.linear(query, self.in_proj_weight, self.in_proj_bias).chunk(3, dim=-1)
+        q = q * scaling
+
+        if attn_mask is not None:
+            assert attn_mask.dtype == torch.float32 or attn_mask.dtype == torch.float64 or \
+                   attn_mask.dtype == torch.float16 or attn_mask.dtype == torch.bool
+            if attn_mask.dim() == 2:
+                attn_mask = attn_mask.unsqueeze(0)
+                if list(attn_mask.size()) != [1, query.size(0), key.size(0)]:
+                    raise RuntimeError('The size of the 2D attn_mask is not correct.')
+            elif attn_mask.dim() == 3:
+                if list(attn_mask.size()) != [bsz * self.num_heads, query.size(0), key.size(0)]:
+                    raise RuntimeError('The size of the 3D attn_mask is not correct.')
+            else:
+                raise RuntimeError("attn_mask's dimension {} is not supported".format(attn_mask.dim()))
+
+        q = q.contiguous().view(tgt_len, bsz * self.num_heads, head_dim).transpose(0, 1)
+        k = k.contiguous().view(-1, bsz * self.num_heads, head_dim).transpose(0, 1)
+        v = v.contiguous().view(-1, bsz * self.num_heads, head_dim).transpose(0, 1)
+
+        src_len = k.size(1)
+
+        attn_output_weights = torch.bmm(q, k.transpose(1, 2))
+        assert list(attn_output_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
+
+        if attn_mask is not None:
+            attn_output_weights += attn_mask
+
+        attn_output_weights = F.softmax(attn_output_weights, dim=-1)
+        attn_output_weights = F.dropout(attn_output_weights, p=self.dropout, training=self.training)
+
+        attn_output = torch.bmm(attn_output_weights, v)
+        assert list(attn_output.size()) == [bsz * self.num_heads, tgt_len, head_dim]
+        attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
+        attn_output = F.linear(attn_output, self.out_proj.weight, self.out_proj.bias)
+
+        return attn_output, None
 
 
 class Block(pl.LightningModule):
@@ -14,7 +64,7 @@ class Block(pl.LightningModule):
         self.dropout2 = nn.Dropout(dropout)
         self.ln_1 = nn.LayerNorm(embed_dim)
         self.ln_2 = nn.LayerNorm(embed_dim)
-        self.attn = nn.MultiheadAttention(embed_dim, nheads, dropout=dropout)
+        self.attn = CustomAttention(embed_dim, nheads, dropout=dropout)
         self.linear1 = nn.Linear(embed_dim, embed_dim * 4, bias=False)
         self.linear2 = nn.Linear(embed_dim * 4, embed_dim, bias=False)
         self.mlp = nn.Sequential(self.linear1, nn.GELU(), self.linear2)
