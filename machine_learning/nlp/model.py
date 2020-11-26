@@ -8,7 +8,12 @@ from transformers.optimization import AdamW
 from machine_learning.nlp import config
 
 
-class CustomAttention(nn.MultiheadAttention):
+class RelativeAttention(nn.MultiheadAttention):
+    def __init__(self, embed_dim, nheads, dropout=0.1, num_positions=512):
+        super().__init__(embed_dim, nheads, dropout=dropout)
+        self.num_positions = num_positions
+        self.position_embeddings = nn.Embedding(2 * num_positions - 1, embed_dim // nheads)
+
     def forward(self, query, key, value, key_padding_mask=None, need_weights=False, attn_mask=None):
         tgt_len, bsz, embed_dim = query.size()
         assert embed_dim == self.embed_dim
@@ -19,7 +24,6 @@ class CustomAttention(nn.MultiheadAttention):
         scaling = float(head_dim) ** -0.5
 
         q, k, v = F.linear(query, self.in_proj_weight, self.in_proj_bias).chunk(3, dim=-1)
-        q = q * scaling
 
         if attn_mask is not None:
             assert attn_mask.dtype == torch.float32 or attn_mask.dtype == torch.float64 or \
@@ -34,14 +38,24 @@ class CustomAttention(nn.MultiheadAttention):
             else:
                 raise RuntimeError("attn_mask's dimension {} is not supported".format(attn_mask.dim()))
 
-        q = q.contiguous().view(tgt_len, bsz * self.num_heads, head_dim).transpose(0, 1)
-        k = k.contiguous().view(-1, bsz * self.num_heads, head_dim).transpose(0, 1)
-        v = v.contiguous().view(-1, bsz * self.num_heads, head_dim).transpose(0, 1)
+        q = q.contiguous().view(tgt_len, bsz, self.num_heads, head_dim).permute(1, 2, 0, 3)
+        k = k.contiguous().view(tgt_len, bsz, self.num_heads, head_dim).permute(1, 2, 0, 3)
+        v = v.contiguous().view(tgt_len, bsz, self.num_heads, head_dim).permute(1, 2, 0, 3)
 
-        src_len = k.size(1)
+        src_len = k.size(2)
 
-        attn_output_weights = torch.bmm(q, k.transpose(1, 2))
-        assert list(attn_output_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
+        attn_output_weights = torch.matmul(q, k.transpose(-1, -2))
+        assert list(attn_output_weights.size()) == [bsz, self.num_heads, tgt_len, src_len]
+
+        position_ids_l = torch.arange(src_len, dtype=torch.long, device=k.device).view(-1, 1)
+        position_ids_r = torch.arange(src_len, dtype=torch.long, device=k.device).view(1, -1)
+        distance = position_ids_l - position_ids_r
+        position_embeddings = self.position_embeddings(distance + self.num_positions - 1)
+        position_embeddings = position_embeddings.to(dtype=k.dtype)
+        relative_position_scores_query = torch.einsum("bhld,lrd->bhlr", q, position_embeddings)
+        relative_position_scores_key = torch.einsum("bhrd,lrd->bhlr", k, position_embeddings)
+        attn_output_weights = attn_output_weights + relative_position_scores_query + relative_position_scores_key
+        attn_output_weights *= scaling
 
         if attn_mask is not None:
             attn_output_weights += attn_mask
@@ -49,22 +63,22 @@ class CustomAttention(nn.MultiheadAttention):
         attn_output_weights = F.softmax(attn_output_weights, dim=-1)
         attn_output_weights = F.dropout(attn_output_weights, p=self.dropout, training=self.training)
 
-        attn_output = torch.bmm(attn_output_weights, v)
-        assert list(attn_output.size()) == [bsz * self.num_heads, tgt_len, head_dim]
-        attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
+        attn_output = torch.matmul(attn_output_weights, v)
+        assert list(attn_output.size()) == [bsz, self.num_heads, tgt_len, head_dim]
+        attn_output = attn_output.permute(2, 0, 1, 3).contiguous().view(tgt_len, bsz, embed_dim)
         attn_output = F.linear(attn_output, self.out_proj.weight, self.out_proj.bias)
 
         return attn_output, None
 
 
 class Block(pl.LightningModule):
-    def __init__(self, embed_dim, nheads, nlayers, dropout):
+    def __init__(self, embed_dim, nheads, nlayers, num_positions, dropout):
         super(Block, self).__init__()
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
         self.ln_1 = nn.LayerNorm(embed_dim)
         self.ln_2 = nn.LayerNorm(embed_dim)
-        self.attn = CustomAttention(embed_dim, nheads, dropout=dropout)
+        self.attn = RelativeAttention(embed_dim, nheads, dropout=dropout, num_positions=num_positions)
         self.linear1 = nn.Linear(embed_dim, embed_dim * 4, bias=False)
         self.linear2 = nn.Linear(embed_dim * 4, embed_dim, bias=False)
         self.mlp = nn.Sequential(self.linear1, nn.GELU(), self.linear2)
@@ -79,6 +93,7 @@ class Block(pl.LightningModule):
         self.linear2.weight.data.normal_(std=scaled_std)
         self.attn.in_proj_bias.data.zero_()
         self.attn.out_proj.bias = None
+        self.attn.position_embeddings.weight.data.normal_(std=config.initial_weight_scale)
 
     def forward(self, x):
         attn_mask = torch.full((len(x), len(x)), -float("Inf"), device=x.device, dtype=x.dtype)
@@ -106,7 +121,7 @@ class GPT2(pl.LightningModule):
         self.dropout = nn.Dropout(dropout)
         self.layers = nn.ModuleList()
         for _ in range(nlayers):
-            self.layers.append(Block(embed_dim, nheads, nlayers, dropout))
+            self.layers.append(Block(embed_dim, nheads, nlayers, num_positions, dropout))
         self.ln_f = nn.LayerNorm(embed_dim)
         self.head = nn.Linear(embed_dim, vocab_size, bias=False)
 
@@ -122,12 +137,7 @@ class GPT2(pl.LightningModule):
 
     def forward(self, x):
         x = x.t()
-        length, batch = x.shape
-
         h = self.token_embeddings(x.long())
-
-        positions = torch.arange(length, device=x.device).unsqueeze(-1)
-        h = h + self.position_embeddings(positions).expand_as(h)
         h = self.dropout(h)
 
         for layer in self.layers:

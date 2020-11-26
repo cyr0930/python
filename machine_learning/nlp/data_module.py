@@ -9,7 +9,7 @@ class DataModule(pl.LightningDataModule):
         super().__init__()
         self.tokenizer = tokenizer
 
-    def setup(self, stage):
+    def setup(self, stage=None):
         if stage == 'fit':
             self.data = []
             size = config.bptt + 1
