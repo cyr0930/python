@@ -79,8 +79,8 @@ class Block(pl.LightningModule):
         self.ln_1 = nn.LayerNorm(embed_dim)
         self.ln_2 = nn.LayerNorm(embed_dim)
         self.attn = RelativeAttention(embed_dim, nheads, dropout=dropout, num_positions=num_positions)
-        self.linear1 = nn.Linear(embed_dim, embed_dim * 4, bias=False)
-        self.linear2 = nn.Linear(embed_dim * 4, embed_dim, bias=False)
+        self.linear1 = nn.Linear(embed_dim, embed_dim * 4)
+        self.linear2 = nn.Linear(embed_dim * 4, embed_dim)
         self.mlp = nn.Sequential(self.linear1, nn.GELU(), self.linear2)
 
         self._init_weights(nlayers)
@@ -92,7 +92,9 @@ class Block(pl.LightningModule):
         self.linear1.weight.data.normal_(std=config.initial_weight_scale)
         self.linear2.weight.data.normal_(std=scaled_std)
         self.attn.in_proj_bias.data.zero_()
-        self.attn.out_proj.bias = None
+        self.attn.out_proj.bias.data.zero_()
+        self.linear1.bias.data.zero_()
+        self.linear2.bias.data.zero_()
         self.attn.position_embeddings.weight.data.normal_(std=config.initial_weight_scale)
 
     def forward(self, x):
