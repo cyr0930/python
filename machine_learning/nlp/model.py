@@ -119,7 +119,6 @@ class GPT2(pl.LightningModule):
         self.criterion = nn.CrossEntropyLoss(ignore_index=config.pad_id)
 
         self.token_embeddings = nn.Embedding(vocab_size, embed_dim)
-        self.position_embeddings = nn.Embedding(num_positions, embed_dim)
         self.dropout = nn.Dropout(dropout)
         self.layers = nn.ModuleList()
         for _ in range(nlayers):
@@ -131,7 +130,6 @@ class GPT2(pl.LightningModule):
 
     def _init_weights(self, tying_weights):
         self.token_embeddings.weight.data.normal_(std=config.initial_weight_scale)
-        self.position_embeddings.weight.data.normal_(std=config.initial_weight_scale)
         if tying_weights:
             self.head.weight = self.token_embeddings.weight
         else:
