@@ -182,6 +182,5 @@ class GPT2(pl.LightningModule):
             print(self.tokenizer.DecodeIds(sources[0].tolist()))
             print(self.tokenizer.DecodeIds(output.argmax(-1)[0].tolist()))
 
-        result = pl.TrainResult(minimize=loss)
-        result.log('train_loss', loss, prog_bar=True)
-        return result
+        self.log('train_loss', loss)
+        return loss
